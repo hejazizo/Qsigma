@@ -1,0 +1,8 @@
+README.md
+setup.py
+Qsigma/__init__.py
+Qsigma/version.py
+qsigma.egg-info/PKG-INFO
+qsigma.egg-info/SOURCES.txt
+qsigma.egg-info/dependency_links.txt
+qsigma.egg-info/top_level.txt

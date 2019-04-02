@@ -1,0 +1,35 @@
+agent:
+  method: SARSA     # SARSA, Qsigma, TreeBackup, ExpectedSARSA
+  q_mode: inc      # choose from "rnd", "alt", "inc", "dec"
+  base: Null
+  gamma: 0.99
+  n_steps: 5
+  alpha: 0.1
+
+policy:
+  epsilon: 0.01
+
+environment:
+  beta: 1
+  reward:
+    CRASH: -10      # reward for hitting a wall
+    CHECKPNT: 10     # reward for reaching the checkpoint
+    WIN: 1000       # reward for reaching the goal
+    STEP: -1.0      # reward for moving
+  position:
+    START: 90
+    CHECKPNT: 64
+    GOAL: 9
+    WALLS:
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+      - 50
+  V_MIN: 0
+  V_MAX: 3

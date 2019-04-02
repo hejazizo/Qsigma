@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: qsigma
+Version: 0.1.0
+Summary: Q-sigma reinforcement learning algorithm
+Home-page: https://github.com/hejazizo
+Author: Ali Hejazizo
+Author-email: hejazizo@ualberta.ca
+License: Apache 2.0
+Description: UNKNOWN
+Keywords: machine-learning reinforcement-learning
+Platform: UNKNOWN
