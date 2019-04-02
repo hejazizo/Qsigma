@@ -1,0 +1,24 @@
+*.pyc
+**/__pycache__
+*.egg
+*.egg-info
+*.egg-info/
+**/.ipynb_checkpoints
+**/.pytest_cache
+*.sqlite
+
+# OS X files
+.DS_Store
+
+# VSCode
+*.vscode
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
