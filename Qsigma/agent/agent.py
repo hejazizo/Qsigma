@@ -1,26 +1,18 @@
 import logging
+import math
 
-from rasa_nlu import utils
-from rasa_nlu.utils import read_yaml_file
 import numpy as np
-from Qsigma.environment.grid_world import GridWorld
-from Qsigma.policy.eps_greedy import EpsGreedy
+
+import copy
 
 logger = logging.getLogger(__name__)
 
 
 class QsigmaAgent():
     def __init__(self, config: str):
-        self.experiments = []
         self.config = config
 
-    def run(self, env, policy, num_experiments, num_episodes):
-        for num_exp in range(num_experiments):
-            logger.info(f'Experiment #{num_exp+1} started...')
-            experiment = self._run_experiment(env, policy, num_episodes)
-            self.experiments.append(experiment)
-
-    def _run_experiment(self, env, policy, num_episodes):
+    def run(self, env, policy, num_episodes):
 
         PI = np.zeros((len(env.states), len(env.actions)))  # policy: <state, action> -> <float>
         Q = np.zeros((len(env.states), len(env.actions)))   # <state, action> -> <float>
@@ -45,7 +37,9 @@ class QsigmaAgent():
             'pi': [],           # actions probability
             'sigmas': [0],      # selected sigma
             'targets': [],      # target reward
-            'map': None
+            'map': None,
+            'PI': None,
+            'Q': None
         }
 
         # -------------------- #
@@ -57,7 +51,7 @@ class QsigmaAgent():
         # --------------------- #
         # ----- S "A" RSA ----- #
         # --------------------- #
-        initial_action = policy.choose_action(env.position['START'], PI, Q)
+        initial_action = policy.choose_action(env.position['START'], env.actions, PI, Q)
         episode['actions'].append(initial_action)
 
         episode['q'].append(Q[initial_state, initial_action])
@@ -75,79 +69,98 @@ class QsigmaAgent():
                 # ------------------------ #
                 # ----- SA "R" "S" A ----- #
                 # ------------------------ #
-                next_state, reward = env.move(episode['states'][t], episode['actions'][t])
+                next_state, reward, episode_finished = env.act(episode['states'][t], episode['actions'][t])
                 episode['states'].append(next_state)
                 episode['rewards'] += reward
                 episode['steps'] += 1
 
-                if next_state == env.position['GOAL']:
+                if episode_finished:
                     T = t+1
                     episode['targets'].append(reward-episode['q'][t])
                 else:
                     # -------------------- #
                     # ----- SARS "A" ----- #
                     # -------------------- #
-                    next_action = policy.choose_action(episode['states'][t+1], PI, Q)
+                    next_action = policy.choose_action(episode['states'][t+1], env.actions, PI, Q)
                     episode['actions'].append(next_action)
 
                     # select sigma according to method and Qsigma mode
-                    sigma = env.choose_sigma(method, q_mode=q_mode, last_sigma=episode['sigmas'][-1], base=base, t=t)
+                    sigma = self.choose_sigma(method, q_mode=q_mode, last_sigma=episode['sigmas'][-1], base=base, t=t)
                     episode['sigmas'].append(sigma)
                     episode['q'].append(Q[next_state, next_action])
-
-                    target = reward + sigma*gamma*episode['q'][t+1] + (1-sigma)*gamma*np.sum(PI[next_state, :]*Q[next_state, :]) - episode['q'][t]
-                    episode['targets'].append(target)
                     episode['pi'].append(PI[next_state, next_action])
+
+                    target = reward + sigma*gamma*episode['q'][t+1] + (1-sigma)*gamma*np.dot(PI[next_state, :], Q[next_state, :]) - episode['q'][t]
+                    episode['targets'].append(target)
 
             # STATE OF TERMINATION
             tau = t - n_steps + 1
             if tau >= 0:
                 E = 1
                 G = episode['q'][tau]
-                for k in range(tau, min(tau+n_steps-1, T-1)):
+                for k in range(tau, min(tau+n_steps-1, T-1)+1):
                     G += E*episode['targets'][k]
-                    E *= gamma*((1-episode['sigmas'][k+1])*episode['pi'][k+1] + episode['sigmas'][k+1])
+                    E *= gamma*((1-episode['sigmas'][k])*episode['pi'][k] + episode['sigmas'][k])
 
                 # Update Q function
                 Q[episode['states'][tau], episode['actions'][tau]] += alpha*(G - Q[episode['states'][tau], episode['actions'][tau]])
                 # Update policy to be epsilon-greedy w.r.t. Q
-                policy.make_greedy(episode['states'][tau], PI, Q)
+                policy.make_greedy(episode['states'][tau], env.actions, PI, Q)
 
             if tau == T-1:
                 break
 
-        episode['map'] = env.map
-        logger.warning(env.map)
+        episode['PI'] = PI.copy()
+        episode['Q'] = Q.copy()
+
+        # episode['map'] = env.world
+        logger.info(f'\n {env.world}')
         logger.info(f"Episode finished with: {episode['steps']} steps")
         return episode
 
+    def choose_sigma(self, method, q_mode=None, last_sigma=None, base=None, t=None):
+        """
+        Return a sigma for the Q(sigma) algorithm according to a given method
+        :param method: the algorithm to follow: SARSA, or TreeBackup, or Qsigma
+        :param q_mode: Qsigma mode (only if method='Qsigma'): random, alternative, decreasing, or increasing mode
+        :param last_sigma: the previous sigma returned by this function (only used for Qsigma in alternating mode)
+        :param base: base of the logarithm to take (only used in non-alternating mode)
+        :param t: current time step (only used for Qsigma in non-alternating mode)
+        :return: 1 for SARSA, 0 for TreeBackup, 1 with probability p for Qsigma (in non-alternating mode)
+        """
 
-def create_argument_parser():
-    import argparse
-    parser = argparse.ArgumentParser(description='Q-sigma Reinforcement Learning Algorithm')
+        sigma = {
+            "SARSA": 1,
+            "TreeBackup": 0,
+            "ExpectedSARSA": 0,
+            "Qsigma": {
+                "rnd": None,    # RANDOM mode
+                "alt": None,    # ALTERNATING mode
+                "inc": None,    # INCREASING probability mode
+                "dec": None     # DECREASING probability mode
+            }
+        }
 
-    parser.add_argument('-c', '--config', type=str, required=True, help='Q-sigma config file.')
-    parser.add_argument('--n_episode', type=int, required=True, help='Number of episodes.')
-    parser.add_argument('--n_experiment', type=int, required=True, help='Number of episodes.')
+        if method == "Qsigma":
+            if q_mode == "rnd":
+                sigma[method]["rnd"] = 1 if np.random.random() < 0.5 else 0
+            elif q_mode == "alt":
+                assert last_sigma in [0, 1]
+                sigma[method]["alt"] = 1 - last_sigma
+            elif q_mode == "inc":
+                assert base >= 3
+                assert t >= 0
+                sample_proba = 1 - math.exp(-math.log(1+t, base))  # increases with t
+                sigma[method]["inc"] = 1 if np.random.random() < sample_proba else 0
+            elif q_mode == "dec":
+                assert base >= 3
+                assert t >= 0
+                sample_proba = math.exp(-math.log(1+t, base))  # decreases with t
+                sigma[method]["dec"] = 1 if np.random.random() < sample_proba else 0
 
-    utils.add_logging_option_arguments(parser)
-    return parser
+            elif q_mode == 'episode_state':
+                sigma[method]["dec"] = 0
 
+            return sigma[method][q_mode]
 
-def main():
-    parser = create_argument_parser()
-    args = parser.parse_args()
-    utils.configure_colored_logging(args.loglevel)
-    config = read_yaml_file(args.config)
-
-    env = GridWorld(config=config['environment'])
-    policy = EpsGreedy(config=config['policy'])
-    qsigma = QsigmaAgent(config=config['agent'])
-    qsigma.run(env, policy, num_experiments=args.n_experiment, num_episodes=args.n_episode)
-
-    logger.info(f"Steps: {[[episode['steps'] for episode in experiment] for experiment in qsigma.experiments]}")
-    logger.info(f"Rewards: {[[episode['rewards'] for episode in experiment] for experiment in qsigma.experiments]}")
-
-
-if __name__ == '__main__':
-    main()
+        return sigma[method]

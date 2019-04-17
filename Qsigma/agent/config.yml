@@ -1,0 +1,7 @@
+Qsigma:
+  method: Qsigma     # SARSA, Qsigma, TreeBackup
+  q_mode: rnd      # choose from "rnd", "alt", "inc", "dec"
+  base: 50
+  gamma: 0.9
+  n_steps: 5
+  alpha: 0.1

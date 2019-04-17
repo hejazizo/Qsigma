@@ -1,0 +1,63 @@
+DynaMaze:
+  beta: 1
+  reward:
+    CRASH: -10      # reward for hitting a wall
+    CHECKPNT: 0     # reward for reaching the checkpoint
+    WIN: 1000       # reward for reaching the goal
+    STEP: -1.0      # reward for moving
+  position:
+    START: 90
+    CHECKPNT: 64
+    GOAL: 9
+    WALLS:
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+      - 50
+      - 51
+      - 52
+      - 53
+      - 54
+      - 55
+      - 56
+
+  V_MIN: 0
+  V_MAX: 3
+
+RandomWalk:
+  n_states: 21    # 19 walk + 2 terminal states
+  position:
+    START: 10     # middle of road
+    END:
+      RIGHT: 20   # state #21 -> terminal state
+      LEFT: 0     # state #1 -> terminal state
+  reward:
+    STEP: 0
+    END:
+      RIGHT: 1
+      LEFT: -1
+
+WindyGridWorld:
+  reward:
+    STEP: -1.0
+  position:
+    START: 30
+    GOAL: 38
+    CHECKPNT: 9999
+  wind:
+    - 0
+    - 0
+    - 0
+    - 1
+    - 1
+    - 1
+    - 2
+    - 2
+    - 1
+    - 0
